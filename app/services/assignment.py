@@ -21,6 +21,7 @@ from app.services.hospital_recommendation import (
     haversine_km,
     infer_capability_needs,
     infer_ktas_level,
+    infer_patient_profile,
     recommend_hospital,
 )
 from app.services.hospital_wait_time import estimate_er_wait_time
@@ -40,16 +41,7 @@ class AssignmentService:
         needs = infer_capability_needs(request.transcript)
         ktas_level = infer_ktas_level(request.transcript, needs)
         suspected = needs.korean_summary() if needs.any_required else None
-
-        patient = self.patient_repo.create_unknown()
-        case = self.case_repo.create_from_transcript(
-            patient_id=patient.patient_id,
-            transcript=request.transcript,
-            paramedic_id=request.paramedic_id,
-            client_location=request.client_location.model_dump(exclude_none=True),
-            ktas_level=ktas_level,
-            suspected_diagnosis=suspected,
-        )
+        profile = infer_patient_profile(request.transcript)
 
         hospitals = self.hospital_repo.list_for_recommendation()
         queue_map = self.assignment_repo.map_active_queue_cases_by_hospital()
@@ -88,12 +80,18 @@ class AssignmentService:
         wait = wait_estimates[hospital.hospital_id]
         travel_minutes = estimate_travel_minutes(distance_km)
 
-        self.assignment_repo.create(
+        patient, case = self._register_emergency_case(
+            request=request,
+            profile=profile,
+            ktas_level=ktas_level,
+            suspected_diagnosis=suspected,
+        )
+        self.assignment_repo.register_case_assignment(
             case_id=case.case_id,
             hospital_id=hospital.hospital_id,
             estimated_arrival_minutes=travel_minutes,
         )
-        self.assignment_repo.commit()
+        self.db.commit()
 
         message = build_assignment_guidance_message(
             transcript=request.transcript,
@@ -119,3 +117,26 @@ class AssignmentService:
             ),
             message=message,
         )
+
+    def _register_emergency_case(
+        self,
+        *,
+        request: VoiceAssignmentRequest,
+        profile,
+        ktas_level: int,
+        suspected_diagnosis: str | None,
+    ):
+        patient = self.patient_repo.create_from_profile(
+            name=profile.name,
+            age=profile.age,
+            sex=profile.sex,
+        )
+        case = self.case_repo.create_from_transcript(
+            patient_id=patient.patient_id,
+            transcript=request.transcript,
+            paramedic_id=request.paramedic_id,
+            client_location=request.client_location.model_dump(exclude_none=True),
+            ktas_level=ktas_level,
+            suspected_diagnosis=suspected_diagnosis,
+        )
+        return patient, case

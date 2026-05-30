@@ -11,8 +11,14 @@ class PatientRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_unknown(self) -> Patient:
-        patient = Patient(name="Unknown")
+    def create_from_profile(
+        self,
+        *,
+        name: str,
+        age: int | None = None,
+        sex: str | None = None,
+    ) -> Patient:
+        patient = Patient(name=name, age=age, sex=sex, nationality="KR", language_preference="ko")
         self.db.add(patient)
         self.db.flush()
         return patient
@@ -70,8 +76,20 @@ class HospitalAssignmentRepository:
         self.db.flush()
         return assignment
 
-    def commit(self) -> None:
-        self.db.commit()
+    def register_case_assignment(
+        self,
+        *,
+        case_id,
+        hospital_id,
+        estimated_arrival_minutes: int = 15,
+        recommendation_rank: int = 1,
+    ) -> HospitalAssignment:
+        return self.create(
+            case_id=case_id,
+            hospital_id=hospital_id,
+            recommendation_rank=recommendation_rank,
+            estimated_arrival_minutes=estimated_arrival_minutes,
+        )
 
     def list_active_by_hospital(
         self, hospital_id

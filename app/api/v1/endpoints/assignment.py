@@ -15,7 +15,7 @@ def create_voice_assignment(
 ) -> VoiceAssignmentResponse:
     """
     Receive paramedic voice-recognition text and client location,
-    register the patient, and recommend the nearest suitable hospital from DB.
+    recommend the nearest suitable hospital, and persist patient/case/assignment to DB.
     """
     service = AssignmentService(db)
     return service.process_voice_assignment(request)

@@ -35,6 +35,13 @@ KTAS2_KEYWORDS = (
 
 
 @dataclass(frozen=True)
+class PatientProfile:
+    name: str
+    age: int | None = None
+    sex: str | None = None
+
+
+@dataclass(frozen=True)
 class CapabilityNeeds:
     trauma: bool = False
     stroke: bool = False
@@ -62,6 +69,39 @@ class CapabilityNeeds:
         }
         labels = [mapping[label] for label in self.labels()]
         return ", ".join(labels) if labels else "일반"
+
+
+def infer_patient_profile(transcript: str) -> PatientProfile:
+    text = transcript.lower()
+
+    ko_decade = re.search(r"(\d{1,2})대\s*(남|남성|여|여성)", transcript)
+    if ko_decade:
+        decade = int(ko_decade.group(1))
+        sex_token = ko_decade.group(2)
+        sex = "M" if sex_token.startswith("남") else "F"
+        return PatientProfile(name="미상", age=decade + 2, sex=sex)
+
+    en_age = re.search(
+        r"(male|female|man|woman).{0,20}?(?:in (?:his|her)|,?)\s*(\d{1,2})s?",
+        text,
+    )
+    if en_age:
+        sex_token = en_age.group(1)
+        sex = "M" if sex_token in ("male", "man") else "F"
+        return PatientProfile(name="Unknown", age=int(en_age.group(2)), sex=sex)
+
+    en_simple = re.search(r"(male|female|man|woman),?\s*(\d{1,2})\s*years?\s*old", text)
+    if en_simple:
+        sex_token = en_simple.group(1)
+        sex = "M" if sex_token in ("male", "man") else "F"
+        return PatientProfile(name="Unknown", age=int(en_simple.group(2)), sex=sex)
+
+    if re.search(r"\b(male|man)\b", text):
+        return PatientProfile(name="Unknown", sex="M")
+    if re.search(r"\b(female|woman)\b", text):
+        return PatientProfile(name="Unknown", sex="F")
+
+    return PatientProfile(name="미상")
 
 
 def infer_capability_needs(transcript: str) -> CapabilityNeeds:
