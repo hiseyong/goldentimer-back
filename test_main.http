@@ -31,3 +31,15 @@ GET http://127.0.0.1:8000/api/v1/hospitals/nearby?latitude=37.4979&longitude=127
 Accept: application/json
 
 ###
+
+### Hospital incoming patient status
+GET http://127.0.0.1:8000/api/v1/hospitals/{{hospital_id}}/patients
+Accept: application/json
+
+###
+
+### Hospital ER wait time
+GET http://127.0.0.1:8000/api/v1/hospitals/{{hospital_id}}/wait-time
+Accept: application/json
+
+###

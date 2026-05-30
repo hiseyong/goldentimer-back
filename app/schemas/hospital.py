@@ -47,6 +47,49 @@ class NearbyHospitalsResponse(BaseModel):
     hospitals: list[NearbyHospitalDetail]
 
 
+class IncomingPatientStatus(BaseModel):
+    assignment_id: uuid.UUID
+    case_id: uuid.UUID
+    patient_id: uuid.UUID
+    patient_name: str | None
+    chief_complaint: str | None
+    ktas_level: int | None
+    transport_status: str | None
+    case_status: str | None
+    acceptance_status: str | None
+    estimated_arrival_minutes: int | None
+    assigned_at: datetime
+
+
+class HospitalPatientStatusResponse(BaseModel):
+    hospital_id: uuid.UUID
+    hospital_name: str
+    total_er_beds: int
+    active_incoming_count: int
+    patients: list[IncomingPatientStatus]
+    summary: str
+
+
+class WaitTimeBreakdown(BaseModel):
+    bed_pressure_minutes: int = Field(description="Estimated delay from ER bed availability")
+    incoming_queue_minutes: int = Field(description="Estimated delay from incoming patient queue")
+    severity_adjustment_minutes: int = Field(
+        description="Additional delay when high-acuity cases are in queue"
+    )
+
+
+class HospitalWaitTimeResponse(BaseModel):
+    hospital_id: uuid.UUID
+    hospital_name: str
+    total_er_beds: int
+    active_incoming_count: int
+    estimated_wait_minutes: int
+    wait_level: str = Field(description="low | moderate | high | severe")
+    breakdown: WaitTimeBreakdown
+    guidance: str
+    data_as_of: datetime | None
+
+
 class EmergencyCaseResponse(BaseModel):
     case_id: uuid.UUID
     patient_id: uuid.UUID

@@ -1,8 +1,14 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.hospital import NearbyHospitalsResponse
+from app.schemas.hospital import (
+    HospitalPatientStatusResponse,
+    HospitalWaitTimeResponse,
+    NearbyHospitalsResponse,
+)
 from app.services.hospital import HospitalService
 
 router = APIRouter()
@@ -31,3 +37,21 @@ def get_nearby_hospitals(
         count=len(hospitals),
         hospitals=hospitals,
     )
+
+
+@router.get("/{hospital_id}/patients", response_model=HospitalPatientStatusResponse)
+def get_hospital_patient_status(
+    hospital_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> HospitalPatientStatusResponse:
+    """Return incoming active patient status for a specific hospital."""
+    return HospitalService(db).get_patient_status(hospital_id)
+
+
+@router.get("/{hospital_id}/wait-time", response_model=HospitalWaitTimeResponse)
+def get_hospital_wait_time(
+    hospital_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> HospitalWaitTimeResponse:
+    """Return estimated ER wait time for a specific hospital."""
+    return HospitalService(db).get_wait_time(hospital_id)

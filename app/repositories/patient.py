@@ -68,3 +68,29 @@ class HospitalAssignmentRepository:
 
     def commit(self) -> None:
         self.db.commit()
+
+    def list_active_by_hospital(
+        self, hospital_id
+    ) -> list[tuple[HospitalAssignment, EmergencyCase, Patient]]:
+        return (
+            self.db.query(HospitalAssignment, EmergencyCase, Patient)
+            .join(EmergencyCase, HospitalAssignment.case_id == EmergencyCase.case_id)
+            .join(Patient, EmergencyCase.patient_id == Patient.patient_id)
+            .filter(
+                HospitalAssignment.hospital_id == hospital_id,
+                EmergencyCase.status == "active",
+            )
+            .order_by(HospitalAssignment.assigned_at.desc())
+            .all()
+        )
+
+    def count_active_by_hospital(self, hospital_id) -> int:
+        return (
+            self.db.query(HospitalAssignment)
+            .join(EmergencyCase, HospitalAssignment.case_id == EmergencyCase.case_id)
+            .filter(
+                HospitalAssignment.hospital_id == hospital_id,
+                EmergencyCase.status == "active",
+            )
+            .count()
+        )
