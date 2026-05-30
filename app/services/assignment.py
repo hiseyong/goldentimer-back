@@ -14,8 +14,8 @@ from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse
 
 DUMMY_HOSPITAL = HospitalResponse(
     hospital_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
-    hospital_name="서울대학교병원",
-    address="서울특별시 종로구 대학로 101",
+    hospital_name="Seoul National University Hospital",
+    address="101 Daehak-ro, Jongno-gu, Seoul",
     latitude=37.5796,
     longitude=126.9988,
     total_er_beds=10,
@@ -36,12 +36,13 @@ class AssignmentService:
     def process_voice_assignment(
         self, request: VoiceAssignmentRequest
     ) -> VoiceAssignmentResponse:
-        # TODO: LLM 분석 및 DB 기반 병원 탐색 로직으로 교체
+        # TODO: Replace with LLM analysis and DB-based hospital search
         patient = self.patient_repo.create_unknown()
         case = self.case_repo.create_from_transcript(
             patient_id=patient.patient_id,
             transcript=request.transcript,
             paramedic_id=request.paramedic_id,
+            client_location=request.client_location.model_dump(exclude_none=True),
         )
 
         hospital = self.hospital_repo.get_first()

@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy.orm import Session
 
 from app.models.assignment import HospitalAssignment
@@ -9,7 +11,7 @@ class PatientRepository:
         self.db = db
 
     def create_unknown(self) -> Patient:
-        patient = Patient(name="미상")
+        patient = Patient(name="Unknown")
         self.db.add(patient)
         self.db.flush()
         return patient
@@ -25,11 +27,13 @@ class EmergencyCaseRepository:
         patient_id,
         transcript: str,
         paramedic_id: str | None = None,
+        client_location: dict | None = None,
     ) -> EmergencyCase:
         case = EmergencyCase(
             patient_id=patient_id,
             chief_complaint=transcript,
             detailed_description=f"paramedic_id={paramedic_id}" if paramedic_id else None,
+            incident_location=json.dumps(client_location) if client_location else None,
             ktas_level=2,
             transport_status="in_transit",
             status="active",

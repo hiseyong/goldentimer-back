@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.database import check_database_connection, get_db
+from app.core.database import get_db
 from app.schemas.assignment import VoiceAssignmentRequest, VoiceAssignmentResponse
 from app.services.assignment import AssignmentService
 
@@ -14,9 +14,10 @@ def create_voice_assignment(
     db: Session = Depends(get_db),
 ) -> VoiceAssignmentResponse:
     """
-    응급대원 음성인식 텍스트를 수신하여 환자를 등록하고 병원을 배정합니다.
+    Receive paramedic voice-recognition text and client location,
+    register the patient, and assign a hospital.
 
-    현재는 LLM 분석 및 실제 병원 탐색 없이 dummy 데이터를 반환합니다.
+    Currently returns dummy data without LLM analysis or real hospital search.
     """
     service = AssignmentService(db)
     return service.process_voice_assignment(request)

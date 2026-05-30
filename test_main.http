@@ -15,7 +15,12 @@ POST http://127.0.0.1:8000/api/v1/assignments
 Content-Type: application/json
 
 {
-  "transcript": "60대 남성, 가슴 통증과 호흡곤란, 의식 명료, 현재 강남대로 123번지 이동 중",
+  "transcript": "Male in his 60s, chest pain and shortness of breath, alert, en route to 123 Gangnam-daero",
+  "client_location": {
+    "latitude": 37.4979,
+    "longitude": 127.0276,
+    "address": "123 Gangnam-daero, Gangnam-gu, Seoul"
+  },
   "paramedic_id": "EMT-001"
 }
 
