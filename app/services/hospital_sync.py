@@ -257,9 +257,8 @@ class HospitalSyncService:
 
         for stage1, stage2 in target_regions:
             self.sync_region_full(stage1, stage2, stats)
+            self.repo.commit()
 
-        self._touch_all_hospitals()
-        self.repo.commit()
         return stats
 
     def _touch_hospital(self, hospital: Hospital) -> None:

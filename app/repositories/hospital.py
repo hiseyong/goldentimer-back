@@ -73,6 +73,7 @@ class HospitalRepository:
         hospital.trauma_center = trauma_center
         hospital.stroke_center = stroke_center
         hospital.cardiac_center = cardiac_center
+        self.db.flush()
         return hospital
 
     def update_beds(
