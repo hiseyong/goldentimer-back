@@ -1,11 +1,22 @@
-# Test your FastAPI endpoints
-
-GET http://127.0.0.1:8000/
+### Health check
+GET http://127.0.0.1:8000/api/v1/health
 Accept: application/json
 
 ###
 
-GET http://127.0.0.1:8000/hello/User
+### Database health check
+GET http://127.0.0.1:8000/api/v1/health/db
 Accept: application/json
+
+###
+
+### Voice assignment (dummy hospital response)
+POST http://127.0.0.1:8000/api/v1/assignments
+Content-Type: application/json
+
+{
+  "transcript": "60대 남성, 가슴 통증과 호흡곤란, 의식 명료, 현재 강남대로 123번지 이동 중",
+  "paramedic_id": "EMT-001"
+}
 
 ###
