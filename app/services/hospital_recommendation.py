@@ -71,6 +71,15 @@ class CapabilityNeeds:
         labels = [mapping[label] for label in self.labels()]
         return ", ".join(labels) if labels else "일반"
 
+    def english_summary(self) -> str:
+        mapping = {
+            "trauma": "trauma (severe trauma)",
+            "stroke": "stroke (cerebrovascular)",
+            "cardiac": "cardiac (chest)",
+        }
+        labels = [mapping[label] for label in self.labels()]
+        return ", ".join(labels) if labels else "general"
+
 
 def infer_patient_profile(transcript: str) -> PatientProfile:
     text = transcript.lower()

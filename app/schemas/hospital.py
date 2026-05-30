@@ -87,7 +87,7 @@ class HospitalRecommendResponse(BaseModel):
     )
     ktas_level: int = Field(description="Inferred KTAS triage level (1–5 scale used here: 1–3)")
     hospital: NearbyHospitalDetail
-    message: str = Field(description="Human-readable recommendation summary in Korean")
+    message: str = Field(description="Human-readable recommendation summary")
 
 
 class IncomingPatientStatus(BaseModel):

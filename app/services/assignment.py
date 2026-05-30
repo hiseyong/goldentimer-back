@@ -62,7 +62,7 @@ class AssignmentService:
             detail = "No suitable hospital found"
             if needs.any_required:
                 detail = (
-                    f"No hospital with required capabilities: {needs.korean_summary()}"
+                    f"No hospital with required capabilities: {needs.english_summary()}"
                 )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

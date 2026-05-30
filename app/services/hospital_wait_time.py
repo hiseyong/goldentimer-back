@@ -116,23 +116,24 @@ def _build_guidance(
 ) -> str:
     if wait_level == "low":
         return (
-            f"{hospital.hospital_name} 응급실은 현재 비교적 원활합니다. "
-            f"예상 대기 약 {wait_minutes}분, 가용 병상 {hospital.total_er_beds}개."
+            f"{hospital.hospital_name} ER is currently relatively clear. "
+            f"Estimated wait ~{wait_minutes} min; {hospital.total_er_beds} beds available."
         )
     if wait_level == "moderate":
         return (
-            f"{hospital.hospital_name} 응급실은 보통 수준의 혼잡도입니다. "
-            f"예상 대기 약 {wait_minutes}분 "
-            f"(재원 {present_count}명, 유입 예정 {incoming_count}명)."
+            f"{hospital.hospital_name} ER has moderate congestion. "
+            f"Estimated wait ~{wait_minutes} min "
+            f"({present_count} patients on site, {incoming_count} incoming)."
         )
     if wait_level == "high":
         return (
-            f"{hospital.hospital_name} 응급실은 혼잡합니다. "
-            f"중증 환자 {present_count}명이 처리 중이며 예상 대기 약 {wait_minutes}분입니다. "
-            f"인근 다른 병원 검토를 권장합니다."
+            f"{hospital.hospital_name} ER is congested. "
+            f"{present_count} critical patients are being treated; "
+            f"estimated wait ~{wait_minutes} min. "
+            f"Consider nearby alternative hospitals."
         )
     return (
-        f"{hospital.hospital_name} 응급실은 매우 혼잡하거나 병상 여유가 부족합니다. "
-        f"재원 중증 환자 부담으로 예상 대기 {wait_minutes}분 이상입니다. "
-        f"다른 응급의료기관 이송을 적극 검토하세요."
+        f"{hospital.hospital_name} ER is severely congested or bed capacity is low. "
+        f"On-site critical patient load suggests wait of {wait_minutes}+ min. "
+        f"Strongly consider transfer to another emergency facility."
     )

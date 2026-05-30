@@ -81,7 +81,7 @@ class HospitalService:
             detail = "No suitable hospital found"
             if needs.any_required:
                 detail = (
-                    f"No hospital with required capabilities: {needs.korean_summary()}"
+                    f"No hospital with required capabilities: {needs.english_summary()}"
                 )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -109,7 +109,7 @@ class HospitalService:
             latitude=latitude,
             longitude=longitude,
             symptoms=symptoms,
-            inferred_capabilities=needs.korean_summary(),
+            inferred_capabilities=needs.english_summary(),
             ktas_level=ktas_level,
             hospital=detail,
             message=message,
@@ -150,14 +150,14 @@ class HospitalService:
         count = len(patients)
         if count == 0:
             summary = (
-                f"{hospital.hospital_name}으로 배정된 유입 예정 활성 환자가 없습니다. "
-                f"응급실 가용 병상 {hospital.total_er_beds}개."
+                f"No active incoming patients assigned to {hospital.hospital_name}. "
+                f"{hospital.total_er_beds} ER beds available."
             )
         else:
             in_transit = sum(1 for p in patients if p.transport_status == "in_transit")
             summary = (
-                f"{hospital.hospital_name} 유입 예정 활성 환자 {count}명 "
-                f"(이송 중 {in_transit}명). 응급실 가용 병상 {hospital.total_er_beds}개."
+                f"{hospital.hospital_name}: {count} active incoming patient(s) "
+                f"({in_transit} in transit). {hospital.total_er_beds} ER beds available."
             )
 
         return HospitalPatientStatusResponse(
