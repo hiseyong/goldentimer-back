@@ -1,6 +1,10 @@
 from pydantic import BaseModel, Field
 
-from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse
+from app.schemas.hospital import (
+    EmergencyCaseResponse,
+    HospitalResponse,
+    WaitTimeBreakdown,
+)
 
 
 class ClientLocation(BaseModel):
@@ -45,7 +49,18 @@ class VoiceAssignmentRequest(BaseModel):
     )
 
 
+class AssignmentWaitTime(BaseModel):
+    distance_km: float = Field(description="Distance to hospital in km")
+    travel_minutes: int = Field(description="Estimated ambulance travel time in minutes")
+    estimated_wait_minutes: int = Field(
+        description="Expected ER wait time when ambulance arrives at hospital"
+    )
+    wait_level: str = Field(description="low | moderate | high | severe")
+    breakdown: WaitTimeBreakdown
+
+
 class VoiceAssignmentResponse(BaseModel):
     emergency_case: EmergencyCaseResponse
     hospital: HospitalResponse
+    wait_time: AssignmentWaitTime
     message: str = "Hospital assignment completed."

@@ -7,8 +7,12 @@ from app.repositories.patient import (
     HospitalAssignmentRepository,
     PatientRepository,
 )
-from app.schemas.assignment import VoiceAssignmentRequest, VoiceAssignmentResponse
-from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse
+from app.schemas.assignment import (
+    AssignmentWaitTime,
+    VoiceAssignmentRequest,
+    VoiceAssignmentResponse,
+)
+from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse, WaitTimeBreakdown
 from app.services.assignment_message import (
     build_assignment_guidance_message,
     estimate_travel_minutes,
@@ -102,5 +106,16 @@ class AssignmentService:
         return VoiceAssignmentResponse(
             emergency_case=EmergencyCaseResponse.model_validate(case),
             hospital=HospitalResponse.model_validate(hospital),
+            wait_time=AssignmentWaitTime(
+                distance_km=round(distance_km, 2),
+                travel_minutes=travel_minutes,
+                estimated_wait_minutes=wait.estimated_wait_minutes,
+                wait_level=wait.wait_level,
+                breakdown=WaitTimeBreakdown(
+                    bed_pressure_minutes=wait.bed_pressure_minutes,
+                    existing_patient_minutes=wait.existing_patient_minutes,
+                    incoming_queue_minutes=wait.incoming_queue_minutes,
+                ),
+            ),
             message=message,
         )

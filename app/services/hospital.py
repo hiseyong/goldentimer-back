@@ -43,7 +43,10 @@ class HospitalService:
         nearby = find_nearby_hospitals(
             hospitals, latitude, longitude, limit=limit, wait_estimates=wait_estimates
         )
-        return [_to_detail(hospital, distance_km) for hospital, distance_km in nearby]
+        return [
+            _to_detail(hospital, distance_km, wait_estimates.get(hospital.hospital_id))
+            for hospital, distance_km in nearby
+        ]
 
     def _get_hospital_or_404(self, hospital_id: uuid.UUID):
         hospital = self.repo.get_by_id(hospital_id)
@@ -125,7 +128,13 @@ class HospitalService:
         )
 
 
-def _to_detail(hospital: Hospital, distance_km: float) -> NearbyHospitalDetail:
+def _to_detail(
+    hospital: Hospital,
+    distance_km: float,
+    wait=None,
+) -> NearbyHospitalDetail:
+    estimated_wait = wait.estimated_wait_minutes if wait else 60
+    wait_level = wait.wait_level if wait else "moderate"
     return NearbyHospitalDetail(
         hospital_id=hospital.hospital_id,
         hpid=hospital.hpid,
@@ -138,6 +147,8 @@ def _to_detail(hospital: Hospital, distance_km: float) -> NearbyHospitalDetail:
         distance_km=round(distance_km, 2),
         total_er_beds=hospital.total_er_beds,
         er_beds_available=hospital.total_er_beds > 0,
+        estimated_wait_minutes=estimated_wait,
+        wait_level=wait_level,
         trauma_center=hospital.trauma_center,
         stroke_center=hospital.stroke_center,
         cardiac_center=hospital.cardiac_center,
