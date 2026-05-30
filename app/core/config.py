@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     hospital_sync_request_delay_sec: float = 0.05
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-2.0-flash-lite"
     gemini_timeout_sec: int = 30
 
     @property

@@ -207,7 +207,8 @@ def _recommendation_sort_key(
 ) -> tuple:
     distance = haversine_km(lat, lon, float(hospital.latitude), float(hospital.longitude))
     travel_minutes = estimate_travel_minutes(distance)
-    total_eta = travel_minutes + wait_minutes
+    # Weight travel more than ER wait so minor wait differences do not override proximity.
+    total_eta = travel_minutes + int(wait_minutes * 0.55)
     no_beds = hospital.total_er_beds <= 0
     return (no_beds, total_eta, distance)
 
@@ -231,7 +232,7 @@ def list_recommendation_candidates(
     def wait_for(hospital: Hospital) -> int:
         if wait_estimates and hospital.hospital_id in wait_estimates:
             return wait_estimates[hospital.hospital_id].estimated_wait_minutes
-        return 60
+        return 20
 
     candidates.sort(
         key=lambda h: _recommendation_sort_key(
@@ -322,13 +323,14 @@ def _select_hospital_with_gemini(
             latitude, longitude, float(hospital.latitude), float(hospital.longitude)
         )
         travel = estimate_travel_minutes(distance)
-        wait = 60
+        wait = 20
         if wait_estimates and hospital.hospital_id in wait_estimates:
             wait = wait_estimates[hospital.hospital_id].estimated_wait_minutes
+        ranking_eta = travel + int(wait * 0.55)
         candidate_lines.append(
             f"{index}. hospital_id={hospital.hospital_id}, name={hospital.hospital_name}, "
             f"distance_km={distance:.1f}, travel_min={travel}, wait_min={wait}, "
-            f"total_eta_min={travel + wait}, er_beds={hospital.total_er_beds}, "
+            f"total_eta_min={ranking_eta}, er_beds={hospital.total_er_beds}, "
             f"trauma={hospital.trauma_center}, stroke={hospital.stroke_center}, "
             f"cardiac={hospital.cardiac_center}"
         )
@@ -380,11 +382,11 @@ def find_nearby_hospitals(
 
     def sort_key(item: tuple[Hospital, float]) -> tuple:
         hospital, distance = item
-        wait_minutes = 60
+        wait_minutes = 20
         if wait_estimates and hospital.hospital_id in wait_estimates:
             wait_minutes = wait_estimates[hospital.hospital_id].estimated_wait_minutes
         travel_minutes = estimate_travel_minutes(distance)
-        total_eta = travel_minutes + wait_minutes
+        total_eta = travel_minutes + int(wait_minutes * 0.55)
         return (hospital.total_er_beds <= 0, total_eta, distance)
 
     ranked.sort(key=sort_key)

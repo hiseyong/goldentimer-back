@@ -6,14 +6,17 @@ from dataclasses import dataclass
 
 from app.models.hospital import Hospital
 
-KTAS_PROCESSING_MINUTES: dict[int, int] = {
-    1: 90,
-    2: 60,
-    3: 35,
-    4: 20,
-    5: 12,
+# Per-patient queue contribution (not full treatment duration).
+KTAS_QUEUE_MINUTES: dict[int, int] = {
+    1: 40,
+    2: 28,
+    3: 18,
+    4: 12,
+    5: 8,
 }
-INCOMING_BURDEN_RATIO = 0.5
+INCOMING_BURDEN_RATIO = 0.35
+QUEUE_SECONDARY_FACTOR = 0.25
+MAX_WAIT_MINUTES = 120
 
 
 @dataclass(frozen=True)
@@ -34,8 +37,37 @@ class WaitTimeEstimate:
 
 def ktas_burden_minutes(ktas_level: int | None) -> int:
     if ktas_level is None:
-        return 25
-    return KTAS_PROCESSING_MINUTES.get(ktas_level, 25)
+        return 15
+    return KTAS_QUEUE_MINUTES.get(ktas_level, 15)
+
+
+def _diminishing_burden_sum(burdens: list[int]) -> int:
+    """First patient drives most of the wait; additional patients add less."""
+    if not burdens:
+        return 0
+    ordered = sorted(burdens, reverse=True)
+    total = ordered[0]
+    for burden in ordered[1:]:
+        total += int(burden * QUEUE_SECONDARY_FACTOR)
+    return total
+
+
+def _bed_pressure_minutes(available_beds: int, queue_count: int) -> int:
+    if available_beds < 0:
+        base = 18 + min(abs(available_beds) * 2, 20)
+    elif available_beds == 0:
+        base = 25
+    elif available_beds <= 2:
+        base = 12
+    elif available_beds <= 5:
+        base = 7
+    else:
+        base = 4
+
+    if queue_count == 0:
+        return base
+    # Active queue already reflects congestion; avoid double-counting scarcity.
+    return max(int(base * 0.5), 3)
 
 
 def _is_present_at_hospital(transport_status: str | None) -> bool:
@@ -46,33 +78,26 @@ def estimate_er_wait_time(
     hospital: Hospital,
     queue_cases: list[HospitalQueueCase],
 ) -> WaitTimeEstimate:
-    beds = hospital.total_er_beds
-
-    if beds < 0:
-        bed_pressure = 45 + min(abs(beds) * 4, 40)
-    elif beds == 0:
-        bed_pressure = 40
-    elif beds <= 3:
-        bed_pressure = 28
-    elif beds <= 8:
-        bed_pressure = 18
-    else:
-        bed_pressure = 10
-
-    existing_patient_minutes = sum(
+    present_burdens = [
         ktas_burden_minutes(case.ktas_level)
         for case in queue_cases
         if _is_present_at_hospital(case.transport_status)
-    )
-    incoming_queue_minutes = sum(
+    ]
+    incoming_burdens = [
         int(ktas_burden_minutes(case.ktas_level) * INCOMING_BURDEN_RATIO)
         for case in queue_cases
         if not _is_present_at_hospital(case.transport_status)
+    ]
+
+    existing_patient_minutes = _diminishing_burden_sum(present_burdens)
+    incoming_queue_minutes = _diminishing_burden_sum(incoming_burdens)
+    bed_pressure = _bed_pressure_minutes(
+        hospital.total_er_beds, len(queue_cases)
     )
 
     total = min(
         bed_pressure + existing_patient_minutes + incoming_queue_minutes,
-        180,
+        MAX_WAIT_MINUTES,
     )
     incoming_count = sum(
         1 for case in queue_cases if not _is_present_at_hospital(case.transport_status)

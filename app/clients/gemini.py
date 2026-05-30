@@ -20,7 +20,7 @@ class GeminiClient:
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-2.5-flash",
+        model: str = "gemini-2.0-flash-lite",
         base_url: str = DEFAULT_BASE_URL,
         timeout_sec: int = 30,
     ):
