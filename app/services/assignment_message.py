@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from app.clients.gemini import GeminiApiError, GeminiClient
 from app.core.config import Settings, get_settings
@@ -36,8 +37,17 @@ ER congestion: {congestion}
 Estimated wait on arrival: {final_wait} min
 
 Include: patient presentation, required specialty, travel/wait estimates, and assigned hospital.
-Do not use markdown or bullet points. Plain text only.
+Do not use markdown, bullet points, or parentheses. Plain text only.
 """
+
+
+def sanitize_for_tts(text: str) -> str:
+    """Remove parentheses so client TTS reads the message naturally."""
+    cleaned = re.sub(r"\(([^)]*)\)", r", \1", text)
+    cleaned = re.sub(r",\s*,", ", ", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n\s*,\s*", "\n", cleaned)
+    return cleaned.strip()
 
 
 def _summarize_symptoms(transcript: str, needs: CapabilityNeeds) -> str:
@@ -87,13 +97,15 @@ def build_assignment_guidance_message(
         except Exception:
             logger.exception("Unexpected Gemini message error, using template")
 
-    return _build_template_message(
-        transcript=transcript,
-        needs=needs,
-        hospital_name=hospital_name,
-        distance_km=distance_km,
-        wait=wait,
-        recommend_only=recommend_only,
+    return sanitize_for_tts(
+        _build_template_message(
+            transcript=transcript,
+            needs=needs,
+            hospital_name=hospital_name,
+            distance_km=distance_km,
+            wait=wait,
+            recommend_only=recommend_only,
+        )
     )
 
 
@@ -131,7 +143,7 @@ def _build_with_gemini(
     message = client.generate_content(prompt).strip()
     if not message:
         raise GeminiApiError("Empty guidance message from Gemini")
-    return message
+    return sanitize_for_tts(message)
 
 
 def _build_template_message(
@@ -153,8 +165,8 @@ def _build_template_message(
     return (
         f"This patient presents with {symptom_text} and requires a hospital with "
         f"{facility_text} capabilities.\n"
-        f"Estimated travel time: ~{travel_minutes} min (distance {distance_km:.1f} km)\n"
-        f"Congestion: {congestion}\n"
+        f"Estimated travel time: ~{travel_minutes} min, distance {distance_km:.1f} km.\n"
+        f"Congestion: {congestion}.\n"
         f"{hospital_name} {action}.\n"
         f"Estimated wait time upon ambulance arrival: {final_wait} min."
     )

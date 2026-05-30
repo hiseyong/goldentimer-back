@@ -109,9 +109,9 @@ class CapabilityNeeds:
 
     def english_summary(self) -> str:
         mapping = {
-            "trauma": "trauma (severe trauma)",
-            "stroke": "stroke (cerebrovascular)",
-            "cardiac": "cardiac (chest)",
+            "trauma": "severe trauma",
+            "stroke": "stroke and cerebrovascular",
+            "cardiac": "cardiac chest",
         }
         labels = [mapping[label] for label in self.labels()]
         return ", ".join(labels) if labels else "general"
