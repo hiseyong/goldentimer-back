@@ -48,4 +48,4 @@ class VoiceAssignmentRequest(BaseModel):
 class VoiceAssignmentResponse(BaseModel):
     emergency_case: EmergencyCaseResponse
     hospital: HospitalResponse
-    message: str = "Hospital assignment completed. (dummy data)"
+    message: str = "Hospital assignment completed."

@@ -19,6 +19,9 @@ class HospitalRepository:
     def list_all(self) -> list[Hospital]:
         return self.db.query(Hospital).all()
 
+    def list_for_recommendation(self) -> list[Hospital]:
+        return self.db.query(Hospital).filter(Hospital.hpid.isnot(None)).all()
+
     def list_for_rotation(self) -> list[Hospital]:
         return (
             self.db.query(Hospital)

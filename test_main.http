@@ -10,7 +10,7 @@ Accept: application/json
 
 ###
 
-### Voice assignment (dummy hospital response)
+### Voice assignment (DB-based hospital recommendation)
 POST http://127.0.0.1:8000/api/v1/assignments
 Content-Type: application/json
 

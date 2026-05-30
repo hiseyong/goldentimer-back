@@ -1,6 +1,4 @@
-import uuid
-from datetime import datetime
-
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.repositories.hospital import HospitalRepository
@@ -11,17 +9,10 @@ from app.repositories.patient import (
 )
 from app.schemas.assignment import VoiceAssignmentRequest, VoiceAssignmentResponse
 from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse
-
-DUMMY_HOSPITAL = HospitalResponse(
-    hospital_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
-    hospital_name="Seoul National University Hospital",
-    address="101 Daehak-ro, Jongno-gu, Seoul",
-    latitude=37.5796,
-    longitude=126.9988,
-    total_er_beds=10,
-    trauma_center=True,
-    stroke_center=True,
-    cardiac_center=True,
+from app.services.hospital_recommendation import (
+    haversine_km,
+    infer_capability_needs,
+    recommend_hospital,
 )
 
 
@@ -36,7 +27,6 @@ class AssignmentService:
     def process_voice_assignment(
         self, request: VoiceAssignmentRequest
     ) -> VoiceAssignmentResponse:
-        # TODO: Replace with LLM analysis and DB-based hospital search
         patient = self.patient_repo.create_unknown()
         case = self.case_repo.create_from_transcript(
             patient_id=patient.patient_id,
@@ -45,19 +35,40 @@ class AssignmentService:
             client_location=request.client_location.model_dump(exclude_none=True),
         )
 
-        hospital = self.hospital_repo.get_first()
-        if hospital is not None:
-            self.assignment_repo.create(
-                case_id=case.case_id,
-                hospital_id=hospital.hospital_id,
-            )
-            hospital_response = HospitalResponse.model_validate(hospital)
-        else:
-            hospital_response = DUMMY_HOSPITAL
+        needs = infer_capability_needs(request.transcript)
+        hospitals = self.hospital_repo.list_for_recommendation()
+        hospital = recommend_hospital(
+            hospitals,
+            request.client_location.latitude,
+            request.client_location.longitude,
+            needs,
+        )
 
+        if hospital is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No hospitals available for recommendation",
+            )
+
+        self.assignment_repo.create(
+            case_id=case.case_id,
+            hospital_id=hospital.hospital_id,
+        )
         self.assignment_repo.commit()
+
+        distance_km = haversine_km(
+            request.client_location.latitude,
+            request.client_location.longitude,
+            float(hospital.latitude),
+            float(hospital.longitude),
+        )
+        message = (
+            f"Recommended {hospital.hospital_name} "
+            f"({distance_km:.1f} km, {hospital.total_er_beds} ER beds available)"
+        )
 
         return VoiceAssignmentResponse(
             emergency_case=EmergencyCaseResponse.model_validate(case),
-            hospital=hospital_response,
+            hospital=HospitalResponse.model_validate(hospital),
+            message=message,
         )
