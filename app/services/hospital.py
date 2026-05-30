@@ -8,12 +8,21 @@ from app.repositories.hospital import HospitalRepository
 from app.repositories.patient import HospitalAssignmentRepository
 from app.schemas.hospital import (
     HospitalPatientStatusResponse,
+    HospitalRecommendResponse,
     HospitalWaitTimeResponse,
     IncomingPatientStatus,
     NearbyHospitalDetail,
     WaitTimeBreakdown,
 )
-from app.services.hospital_recommendation import estimate_travel_minutes, find_nearby_hospitals
+from app.services.assignment_message import build_assignment_guidance_message
+from app.services.hospital_recommendation import (
+    estimate_travel_minutes,
+    find_nearby_hospitals,
+    haversine_km,
+    infer_capability_needs,
+    infer_ktas_level,
+    recommend_hospital as select_recommended_hospital,
+)
 from app.services.hospital_wait_time import estimate_er_wait_time
 
 
@@ -47,6 +56,64 @@ class HospitalService:
             _to_detail(hospital, distance_km, wait_estimates.get(hospital.hospital_id))
             for hospital, distance_km in nearby
         ]
+
+    def recommend_hospital(
+        self,
+        latitude: float,
+        longitude: float,
+        symptoms: str,
+    ) -> HospitalRecommendResponse:
+        needs = infer_capability_needs(symptoms)
+        ktas_level = infer_ktas_level(symptoms, needs)
+
+        hospitals = self.repo.list_for_recommendation()
+        wait_estimates = self._build_wait_estimates(hospitals)
+
+        hospital = select_recommended_hospital(
+            hospitals,
+            latitude,
+            longitude,
+            needs,
+            wait_estimates=wait_estimates,
+        )
+
+        if hospital is None:
+            detail = "No suitable hospital found"
+            if needs.any_required:
+                detail = (
+                    f"No hospital with required capabilities: {needs.korean_summary()}"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=detail,
+            )
+
+        distance_km = haversine_km(
+            latitude,
+            longitude,
+            float(hospital.latitude),
+            float(hospital.longitude),
+        )
+        wait = wait_estimates[hospital.hospital_id]
+        detail = _to_detail(hospital, distance_km, wait)
+        message = build_assignment_guidance_message(
+            transcript=symptoms,
+            needs=needs,
+            hospital_name=hospital.hospital_name,
+            distance_km=distance_km,
+            wait=wait,
+            recommend_only=True,
+        )
+
+        return HospitalRecommendResponse(
+            latitude=latitude,
+            longitude=longitude,
+            symptoms=symptoms,
+            inferred_capabilities=needs.korean_summary(),
+            ktas_level=ktas_level,
+            hospital=detail,
+            message=message,
+        )
 
     def _get_hospital_or_404(self, hospital_id: uuid.UUID):
         hospital = self.repo.get_by_id(hospital_id)

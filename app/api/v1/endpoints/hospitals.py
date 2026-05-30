@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.hospital import (
     HospitalPatientStatusResponse,
+    HospitalRecommendRequest,
+    HospitalRecommendResponse,
     HospitalWaitTimeResponse,
     NearbyHospitalsResponse,
 )
@@ -36,6 +38,22 @@ def get_nearby_hospitals(
         longitude=longitude,
         count=len(hospitals),
         hospitals=hospitals,
+    )
+
+
+@router.post("/recommend", response_model=HospitalRecommendResponse)
+def recommend_hospital(
+    request: HospitalRecommendRequest,
+    db: Session = Depends(get_db),
+) -> HospitalRecommendResponse:
+    """
+    Recommend the best ER hospital from the client's coordinates and symptom text.
+    Does not create patient/case records (use POST /assignments for full assignment).
+    """
+    return HospitalService(db).recommend_hospital(
+        request.latitude,
+        request.longitude,
+        request.symptoms,
     )
 
 

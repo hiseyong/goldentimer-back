@@ -32,6 +32,18 @@ Accept: application/json
 
 ###
 
+### Hospital recommend (location + symptoms, no DB assignment)
+POST http://127.0.0.1:8000/api/v1/hospitals/recommend
+Content-Type: application/json
+
+{
+  "latitude": 37.4979,
+  "longitude": 127.0276,
+  "symptoms": "60대 남성, 흉통 및 호흡곤란"
+}
+
+###
+
 ### Hospital incoming patient status
 GET http://127.0.0.1:8000/api/v1/hospitals/{{hospital_id}}/patients
 Accept: application/json
