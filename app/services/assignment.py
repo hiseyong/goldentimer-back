@@ -9,6 +9,10 @@ from app.repositories.patient import (
 )
 from app.schemas.assignment import VoiceAssignmentRequest, VoiceAssignmentResponse
 from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse
+from app.services.assignment_message import (
+    build_assignment_guidance_message,
+    estimate_travel_minutes,
+)
 from app.services.hospital_recommendation import (
     haversine_km,
     infer_capability_needs,
@@ -71,12 +75,6 @@ class AssignmentService:
                 detail=detail,
             )
 
-        self.assignment_repo.create(
-            case_id=case.case_id,
-            hospital_id=hospital.hospital_id,
-        )
-        self.assignment_repo.commit()
-
         distance_km = haversine_km(
             request.client_location.latitude,
             request.client_location.longitude,
@@ -84,15 +82,21 @@ class AssignmentService:
             float(hospital.longitude),
         )
         wait = wait_estimates[hospital.hospital_id]
-        capability_note = (
-            f" [{needs.korean_summary()} 수용 가능]"
-            if needs.any_required
-            else ""
+        travel_minutes = estimate_travel_minutes(distance_km)
+
+        self.assignment_repo.create(
+            case_id=case.case_id,
+            hospital_id=hospital.hospital_id,
+            estimated_arrival_minutes=travel_minutes,
         )
-        message = (
-            f"Recommended {hospital.hospital_name}{capability_note} "
-            f"({distance_km:.1f} km, ER beds {hospital.total_er_beds}, "
-            f"est. wait {wait.estimated_wait_minutes} min)"
+        self.assignment_repo.commit()
+
+        message = build_assignment_guidance_message(
+            transcript=request.transcript,
+            needs=needs,
+            hospital_name=hospital.hospital_name,
+            distance_km=distance_km,
+            wait=wait,
         )
 
         return VoiceAssignmentResponse(
