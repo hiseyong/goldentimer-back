@@ -89,3 +89,22 @@ def recommend_hospital(
 
     candidates.sort(key=lambda h: _sort_key(h, latitude, longitude))
     return candidates[0]
+
+
+def find_nearby_hospitals(
+    hospitals: list[Hospital],
+    latitude: float,
+    longitude: float,
+    limit: int = 5,
+) -> list[tuple[Hospital, float]]:
+    ranked = [
+        (
+            hospital,
+            haversine_km(
+                latitude, longitude, float(hospital.latitude), float(hospital.longitude)
+            ),
+        )
+        for hospital in hospitals
+    ]
+    ranked.sort(key=lambda item: (item[0].total_er_beds <= 0, item[1]))
+    return ranked[:limit]

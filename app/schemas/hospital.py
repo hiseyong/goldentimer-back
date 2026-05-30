@@ -18,6 +18,35 @@ class HospitalResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class NearbyHospitalDetail(BaseModel):
+    hospital_id: uuid.UUID
+    hpid: str | None
+    hospital_name: str
+    address: str
+    stage1: str | None
+    stage2: str | None
+    latitude: float
+    longitude: float
+    distance_km: float = Field(description="Distance from client location in km")
+    total_er_beds: int = Field(description="Available ER beds from realtime API (hvec)")
+    er_beds_available: bool = Field(description="Whether ER beds > 0")
+    trauma_center: bool
+    stroke_center: bool
+    cardiac_center: bool
+    updated_at: datetime | None = Field(
+        default=None, description="Last bed info sync time (UTC)"
+    )
+
+    model_config = {"from_attributes": True}
+
+
+class NearbyHospitalsResponse(BaseModel):
+    latitude: float
+    longitude: float
+    count: int
+    hospitals: list[NearbyHospitalDetail]
+
+
 class EmergencyCaseResponse(BaseModel):
     case_id: uuid.UUID
     patient_id: uuid.UUID
