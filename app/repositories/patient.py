@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.assignment import HospitalAssignment
 from app.models.patient import EmergencyCase, Patient
+from app.services.hospital_wait_time import HospitalQueueCase
 
 
 class PatientRepository:
@@ -28,13 +29,16 @@ class EmergencyCaseRepository:
         transcript: str,
         paramedic_id: str | None = None,
         client_location: dict | None = None,
+        ktas_level: int | None = None,
+        suspected_diagnosis: str | None = None,
     ) -> EmergencyCase:
         case = EmergencyCase(
             patient_id=patient_id,
             chief_complaint=transcript,
             detailed_description=f"paramedic_id={paramedic_id}" if paramedic_id else None,
+            suspected_diagnosis=suspected_diagnosis,
             incident_location=json.dumps(client_location) if client_location else None,
-            ktas_level=2,
+            ktas_level=ktas_level if ktas_level is not None else 3,
             transport_status="in_transit",
             status="active",
         )
@@ -83,6 +87,41 @@ class HospitalAssignmentRepository:
             .order_by(HospitalAssignment.assigned_at.desc())
             .all()
         )
+
+    def list_active_queue_cases_by_hospital(
+        self, hospital_id
+    ) -> list[HospitalQueueCase]:
+        rows = (
+            self.db.query(EmergencyCase.ktas_level, EmergencyCase.transport_status)
+            .join(HospitalAssignment, HospitalAssignment.case_id == EmergencyCase.case_id)
+            .filter(
+                HospitalAssignment.hospital_id == hospital_id,
+                EmergencyCase.status == "active",
+            )
+            .all()
+        )
+        return [
+            HospitalQueueCase(ktas_level=ktas, transport_status=status)
+            for ktas, status in rows
+        ]
+
+    def map_active_queue_cases_by_hospital(self) -> dict:
+        rows = (
+            self.db.query(
+                HospitalAssignment.hospital_id,
+                EmergencyCase.ktas_level,
+                EmergencyCase.transport_status,
+            )
+            .join(EmergencyCase, HospitalAssignment.case_id == EmergencyCase.case_id)
+            .filter(EmergencyCase.status == "active")
+            .all()
+        )
+        result: dict = {}
+        for hospital_id, ktas, status in rows:
+            result.setdefault(hospital_id, []).append(
+                HospitalQueueCase(ktas_level=ktas, transport_status=status)
+            )
+        return result
 
     def count_active_by_hospital(self, hospital_id) -> int:
         return (

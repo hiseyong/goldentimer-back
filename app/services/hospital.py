@@ -23,6 +23,15 @@ class HospitalService:
         self.repo = HospitalRepository(db)
         self.assignment_repo = HospitalAssignmentRepository(db)
 
+    def _build_wait_estimates(self, hospitals: list[Hospital]) -> dict:
+        queue_map = self.assignment_repo.map_active_queue_cases_by_hospital()
+        return {
+            hospital.hospital_id: estimate_er_wait_time(
+                hospital, queue_map.get(hospital.hospital_id, [])
+            )
+            for hospital in hospitals
+        }
+
     def get_nearby_hospitals(
         self,
         latitude: float,
@@ -30,7 +39,10 @@ class HospitalService:
         limit: int = 5,
     ) -> list[NearbyHospitalDetail]:
         hospitals = self.repo.list_for_recommendation()
-        nearby = find_nearby_hospitals(hospitals, latitude, longitude, limit=limit)
+        wait_estimates = self._build_wait_estimates(hospitals)
+        nearby = find_nearby_hospitals(
+            hospitals, latitude, longitude, limit=limit, wait_estimates=wait_estimates
+        )
         return [_to_detail(hospital, distance_km) for hospital, distance_km in nearby]
 
     def _get_hospital_or_404(self, hospital_id: uuid.UUID):
@@ -89,26 +101,24 @@ class HospitalService:
 
     def get_wait_time(self, hospital_id: uuid.UUID) -> HospitalWaitTimeResponse:
         hospital = self._get_hospital_or_404(hospital_id)
-        rows = self.assignment_repo.list_active_by_hospital(hospital_id)
-        ktas_levels = [case.ktas_level for _, case, _ in rows]
+        queue_cases = self.assignment_repo.list_active_queue_cases_by_hospital(hospital_id)
 
-        estimate = estimate_er_wait_time(
-            hospital,
-            active_incoming_count=len(rows),
-            ktas_levels=ktas_levels,
+        estimate = estimate_er_wait_time(hospital, queue_cases)
+        incoming_count = sum(
+            1 for case in queue_cases if case.transport_status == "in_transit"
         )
 
         return HospitalWaitTimeResponse(
             hospital_id=hospital.hospital_id,
             hospital_name=hospital.hospital_name,
             total_er_beds=hospital.total_er_beds,
-            active_incoming_count=len(rows),
+            active_incoming_count=incoming_count,
             estimated_wait_minutes=estimate.estimated_wait_minutes,
             wait_level=estimate.wait_level,
             breakdown=WaitTimeBreakdown(
                 bed_pressure_minutes=estimate.bed_pressure_minutes,
+                existing_patient_minutes=estimate.existing_patient_minutes,
                 incoming_queue_minutes=estimate.incoming_queue_minutes,
-                severity_adjustment_minutes=estimate.severity_adjustment_minutes,
             ),
             guidance=estimate.guidance,
             data_as_of=hospital.updated_at,

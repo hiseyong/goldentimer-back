@@ -72,9 +72,11 @@ class HospitalPatientStatusResponse(BaseModel):
 
 class WaitTimeBreakdown(BaseModel):
     bed_pressure_minutes: int = Field(description="Estimated delay from ER bed availability")
-    incoming_queue_minutes: int = Field(description="Estimated delay from incoming patient queue")
-    severity_adjustment_minutes: int = Field(
-        description="Additional delay when high-acuity cases are in queue"
+    existing_patient_minutes: int = Field(
+        description="Delay from patients already at the hospital, weighted by KTAS severity"
+    )
+    incoming_queue_minutes: int = Field(
+        description="Delay from incoming patients, weighted by KTAS severity"
     )
 
 
