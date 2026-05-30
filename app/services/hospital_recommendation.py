@@ -1,14 +1,50 @@
-"""병원 추천: 거리, 가용 병상, 중증질환 수용, 대기 시간 기반."""
+"""병원 추천: 거리, 가용 병상, 중증질환 수용, 대기 시간 기반 (+ Gemini 선택)."""
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 import uuid
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
+from app.clients.gemini import GeminiApiError, GeminiClient
+from app.core.config import Settings, get_settings
 from app.models.hospital import Hospital
 from app.services.hospital_wait_time import WaitTimeEstimate
+
+if TYPE_CHECKING:
+    from app.services.transcript_analysis import TranscriptAnalysis
+
+logger = logging.getLogger(__name__)
+
+LLM_CANDIDATE_LIMIT = 10
+
+HOSPITAL_SELECTION_PROMPT = """You are an emergency medical dispatch assistant selecting the best ER hospital.
+Choose the single best hospital for this patient from the candidate list.
+
+Symptoms / transcript:
+\"\"\"
+{symptoms}
+\"\"\"
+
+Clinical summary: {clinical_summary}
+KTAS level: {ktas_level} (1 = most urgent)
+Required specialty centers: {capabilities}
+
+Selection priorities:
+1. Must satisfy required specialty centers (trauma / stroke / cardiac)
+2. Minimize total time to treatment (travel + ER wait)
+3. Prefer hospitals with available ER beds when clinically appropriate
+4. For time-critical cases (KTAS 1-2), favor specialty capability over small travel savings
+
+Candidates (sorted by estimated total ETA):
+{candidates}
+
+Return JSON only:
+{{"hospital_id": "<uuid from list>", "reason": "one concise English sentence"}}
+"""
 
 EARTH_RADIUS_KM = 6371.0
 AMBULANCE_SPEED_KMH = 40.0
@@ -176,20 +212,19 @@ def _recommendation_sort_key(
     return (no_beds, total_eta, distance)
 
 
-def recommend_hospital(
+def list_recommendation_candidates(
     hospitals: list[Hospital],
     latitude: float,
     longitude: float,
     needs: CapabilityNeeds,
     wait_estimates: dict[uuid.UUID, WaitTimeEstimate] | None = None,
-) -> Hospital | None:
+    limit: int | None = None,
+) -> list[Hospital]:
     if not hospitals:
-        return None
+        return []
 
     if needs.any_required:
         candidates = [h for h in hospitals if _meets_capabilities(h, needs)]
-        if not candidates:
-            return None
     else:
         candidates = list(hospitals)
 
@@ -203,7 +238,127 @@ def recommend_hospital(
             h, latitude, longitude, wait_for(h)
         )
     )
+    if limit is not None:
+        return candidates[:limit]
+    return candidates
+
+
+def recommend_hospital(
+    hospitals: list[Hospital],
+    latitude: float,
+    longitude: float,
+    needs: CapabilityNeeds,
+    wait_estimates: dict[uuid.UUID, WaitTimeEstimate] | None = None,
+) -> Hospital | None:
+    candidates = list_recommendation_candidates(
+        hospitals, latitude, longitude, needs, wait_estimates
+    )
+    return candidates[0] if candidates else None
+
+
+def recommend_hospital_for_analysis(
+    hospitals: list[Hospital],
+    latitude: float,
+    longitude: float,
+    analysis: TranscriptAnalysis,
+    wait_estimates: dict[uuid.UUID, WaitTimeEstimate] | None = None,
+    settings: Settings | None = None,
+    symptoms: str | None = None,
+) -> Hospital | None:
+    """Rank candidates by ETA, then use Gemini to pick the best fit when enabled."""
+    settings = settings or get_settings()
+    candidates = list_recommendation_candidates(
+        hospitals,
+        latitude,
+        longitude,
+        analysis.needs,
+        wait_estimates,
+        limit=LLM_CANDIDATE_LIMIT,
+    )
+    if not candidates:
+        return None
+    if settings.gemini_enabled and len(candidates) > 1:
+        try:
+            selected = _select_hospital_with_gemini(
+                candidates=candidates,
+                symptoms=symptoms or "",
+                clinical_summary=analysis.clinical_summary,
+                ktas_level=analysis.ktas_level,
+                needs=analysis.needs,
+                latitude=latitude,
+                longitude=longitude,
+                wait_estimates=wait_estimates,
+                settings=settings,
+            )
+            if selected is not None:
+                return selected
+        except GeminiApiError as exc:
+            logger.warning("Gemini hospital selection failed, using ETA ranking: %s", exc)
+        except Exception:
+            logger.exception("Unexpected Gemini hospital selection error, using ETA ranking")
     return candidates[0]
+
+
+def _select_hospital_with_gemini(
+    *,
+    candidates: list[Hospital],
+    symptoms: str,
+    clinical_summary: str | None,
+    ktas_level: int,
+    needs: CapabilityNeeds,
+    latitude: float,
+    longitude: float,
+    wait_estimates: dict[uuid.UUID, WaitTimeEstimate] | None,
+    settings: Settings,
+) -> Hospital | None:
+    client = GeminiClient(
+        api_key=settings.gemini_api_key,
+        model=settings.gemini_model,
+        timeout_sec=settings.gemini_timeout_sec,
+    )
+    candidate_lines: list[str] = []
+    for index, hospital in enumerate(candidates, start=1):
+        distance = haversine_km(
+            latitude, longitude, float(hospital.latitude), float(hospital.longitude)
+        )
+        travel = estimate_travel_minutes(distance)
+        wait = 60
+        if wait_estimates and hospital.hospital_id in wait_estimates:
+            wait = wait_estimates[hospital.hospital_id].estimated_wait_minutes
+        candidate_lines.append(
+            f"{index}. hospital_id={hospital.hospital_id}, name={hospital.hospital_name}, "
+            f"distance_km={distance:.1f}, travel_min={travel}, wait_min={wait}, "
+            f"total_eta_min={travel + wait}, er_beds={hospital.total_er_beds}, "
+            f"trauma={hospital.trauma_center}, stroke={hospital.stroke_center}, "
+            f"cardiac={hospital.cardiac_center}"
+        )
+
+    prompt = HOSPITAL_SELECTION_PROMPT.format(
+        symptoms=symptoms.strip(),
+        clinical_summary=clinical_summary or "not available",
+        ktas_level=ktas_level,
+        capabilities=needs.english_summary(),
+        candidates="\n".join(candidate_lines),
+    )
+    raw = client.generate_content(prompt, json_mode=True)
+    data = GeminiClient.parse_json_response(raw)
+    hospital_id_raw = data.get("hospital_id")
+    if not hospital_id_raw:
+        raise GeminiApiError("Missing hospital_id in Gemini selection response")
+
+    try:
+        selected_id = uuid.UUID(str(hospital_id_raw))
+    except ValueError as exc:
+        raise GeminiApiError(f"Invalid hospital_id from Gemini: {hospital_id_raw}") from exc
+
+    by_id = {hospital.hospital_id: hospital for hospital in candidates}
+    if selected_id not in by_id:
+        raise GeminiApiError(f"Gemini selected unknown hospital_id: {selected_id}")
+
+    reason = data.get("reason")
+    if isinstance(reason, str) and reason.strip():
+        logger.info("Gemini hospital selection: %s", reason.strip())
+    return by_id[selected_id]
 
 
 def find_nearby_hospitals(

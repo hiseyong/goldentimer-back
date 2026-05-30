@@ -17,12 +17,10 @@ from app.services.assignment_message import build_assignment_guidance_message
 from app.services.hospital_recommendation import (
     estimate_travel_minutes,
     haversine_km,
-    infer_capability_needs,
-    infer_ktas_level,
-    infer_patient_profile,
-    recommend_hospital,
+    recommend_hospital_for_analysis,
 )
 from app.services.hospital_wait_time import estimate_er_wait_time
+from app.services.transcript_analysis import TranscriptAnalyzer
 
 
 class AssignmentService:
@@ -32,14 +30,16 @@ class AssignmentService:
         self.case_repo = EmergencyCaseRepository(db)
         self.assignment_repo = HospitalAssignmentRepository(db)
         self.hospital_repo = HospitalRepository(db)
+        self.transcript_analyzer = TranscriptAnalyzer()
 
     def process_voice_assignment(
         self, request: VoiceAssignmentRequest
     ) -> VoiceAssignmentResponse:
-        needs = infer_capability_needs(request.transcript)
-        ktas_level = infer_ktas_level(request.transcript, needs)
-        suspected = needs.korean_summary() if needs.any_required else None
-        profile = infer_patient_profile(request.transcript)
+        analysis = self.transcript_analyzer.analyze(request.transcript)
+        needs = analysis.needs
+        ktas_level = analysis.ktas_level
+        suspected = analysis.suspected_diagnosis
+        profile = analysis.profile
 
         hospitals = self.hospital_repo.list_for_recommendation()
         queue_map = self.assignment_repo.map_active_queue_cases_by_hospital()
@@ -50,12 +50,14 @@ class AssignmentService:
             for hospital in hospitals
         }
 
-        hospital = recommend_hospital(
+        hospital = recommend_hospital_for_analysis(
             hospitals,
             request.client_location.latitude,
             request.client_location.longitude,
-            needs,
+            analysis,
             wait_estimates=wait_estimates,
+            settings=self.transcript_analyzer.settings,
+            symptoms=request.transcript,
         )
 
         if hospital is None:
@@ -97,6 +99,9 @@ class AssignmentService:
             hospital_name=hospital.hospital_name,
             distance_km=distance_km,
             wait=wait,
+            ktas_level=ktas_level,
+            clinical_summary=analysis.clinical_summary,
+            settings=self.transcript_analyzer.settings,
         )
 
         return VoiceAssignmentResponse(

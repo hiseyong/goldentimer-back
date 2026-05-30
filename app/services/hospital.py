@@ -19,11 +19,10 @@ from app.services.hospital_recommendation import (
     estimate_travel_minutes,
     find_nearby_hospitals,
     haversine_km,
-    infer_capability_needs,
-    infer_ktas_level,
-    recommend_hospital as select_recommended_hospital,
+    recommend_hospital_for_analysis,
 )
 from app.services.hospital_wait_time import estimate_er_wait_time
+from app.services.transcript_analysis import TranscriptAnalyzer
 
 
 class HospitalService:
@@ -31,6 +30,7 @@ class HospitalService:
         self.db = db
         self.repo = HospitalRepository(db)
         self.assignment_repo = HospitalAssignmentRepository(db)
+        self.transcript_analyzer = TranscriptAnalyzer()
 
     def _build_wait_estimates(self, hospitals: list[Hospital]) -> dict:
         queue_map = self.assignment_repo.map_active_queue_cases_by_hospital()
@@ -63,18 +63,21 @@ class HospitalService:
         longitude: float,
         symptoms: str,
     ) -> HospitalRecommendResponse:
-        needs = infer_capability_needs(symptoms)
-        ktas_level = infer_ktas_level(symptoms, needs)
+        analysis = self.transcript_analyzer.analyze(symptoms)
+        needs = analysis.needs
+        ktas_level = analysis.ktas_level
 
         hospitals = self.repo.list_for_recommendation()
         wait_estimates = self._build_wait_estimates(hospitals)
 
-        hospital = select_recommended_hospital(
+        hospital = recommend_hospital_for_analysis(
             hospitals,
             latitude,
             longitude,
-            needs,
+            analysis,
             wait_estimates=wait_estimates,
+            settings=self.transcript_analyzer.settings,
+            symptoms=symptoms,
         )
 
         if hospital is None:
@@ -103,6 +106,9 @@ class HospitalService:
             distance_km=distance_km,
             wait=wait,
             recommend_only=True,
+            ktas_level=ktas_level,
+            clinical_summary=analysis.clinical_summary,
+            settings=self.transcript_analyzer.settings,
         )
 
         return HospitalRecommendResponse(

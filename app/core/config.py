@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     hospital_sync_full_hour: int = 3
     hospital_sync_request_delay_sec: float = 0.05
 
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_timeout_sec: int = 30
+
+    @property
+    def gemini_enabled(self) -> bool:
+        return bool(self.gemini_api_key.strip())
+
     @property
     def database_url(self) -> str:
         return (
