@@ -11,6 +11,7 @@ from app.models.hospital import Hospital
 from app.services.hospital_wait_time import WaitTimeEstimate
 
 EARTH_RADIUS_KM = 6371.0
+AMBULANCE_SPEED_KMH = 40.0
 
 TRAUMA_KEYWORDS = (
     "trauma", "외상", "교통사고", "추돌", "낙상", "골절", "다발성", "관통", "출혈",
@@ -122,6 +123,11 @@ def infer_ktas_level(transcript: str, needs: CapabilityNeeds) -> int:
     return 3
 
 
+def estimate_travel_minutes(distance_km: float) -> int:
+    minutes = int(round((distance_km / AMBULANCE_SPEED_KMH) * 60))
+    return max(minutes, 3)
+
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
     lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
@@ -155,8 +161,10 @@ def _recommendation_sort_key(
     wait_minutes: int,
 ) -> tuple:
     distance = haversine_km(lat, lon, float(hospital.latitude), float(hospital.longitude))
+    travel_minutes = estimate_travel_minutes(distance)
+    total_eta = travel_minutes + wait_minutes
     no_beds = hospital.total_er_beds <= 0
-    return (no_beds, wait_minutes, distance)
+    return (no_beds, total_eta, distance)
 
 
 def recommend_hospital(
@@ -211,7 +219,9 @@ def find_nearby_hospitals(
         wait_minutes = 60
         if wait_estimates and hospital.hospital_id in wait_estimates:
             wait_minutes = wait_estimates[hospital.hospital_id].estimated_wait_minutes
-        return (hospital.total_er_beds <= 0, wait_minutes, distance)
+        travel_minutes = estimate_travel_minutes(distance)
+        total_eta = travel_minutes + wait_minutes
+        return (hospital.total_er_beds <= 0, total_eta, distance)
 
     ranked.sort(key=sort_key)
     return ranked[:limit]

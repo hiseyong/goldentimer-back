@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.services.hospital_recommendation import CapabilityNeeds
+from app.services.hospital_recommendation import CapabilityNeeds, estimate_travel_minutes
 from app.services.hospital_wait_time import WaitTimeEstimate
 
 WAIT_LEVEL_KO = {
@@ -11,13 +11,6 @@ WAIT_LEVEL_KO = {
     "high": "혼잡",
     "severe": "매우 혼잡",
 }
-
-AMBULANCE_SPEED_KMH = 40.0
-
-
-def estimate_travel_minutes(distance_km: float) -> int:
-    minutes = int(round((distance_km / AMBULANCE_SPEED_KMH) * 60))
-    return max(minutes, 3)
 
 
 def _summarize_symptoms(transcript: str, needs: CapabilityNeeds) -> str:

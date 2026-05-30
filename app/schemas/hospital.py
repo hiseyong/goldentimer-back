@@ -28,6 +28,12 @@ class NearbyHospitalDetail(BaseModel):
     latitude: float
     longitude: float
     distance_km: float = Field(description="Distance from client location in km")
+    estimated_travel_minutes: int = Field(
+        description="Estimated ambulance travel time in minutes"
+    )
+    total_eta_minutes: int = Field(
+        description="Estimated travel + ER wait time in minutes"
+    )
     total_er_beds: int = Field(description="Available ER beds from realtime API (hvec)")
     er_beds_available: bool = Field(description="Whether ER beds > 0")
     estimated_wait_minutes: int = Field(description="Estimated ER wait time in minutes")

@@ -13,7 +13,7 @@ from app.schemas.hospital import (
     NearbyHospitalDetail,
     WaitTimeBreakdown,
 )
-from app.services.hospital_recommendation import find_nearby_hospitals
+from app.services.hospital_recommendation import estimate_travel_minutes, find_nearby_hospitals
 from app.services.hospital_wait_time import estimate_er_wait_time
 
 
@@ -135,6 +135,7 @@ def _to_detail(
 ) -> NearbyHospitalDetail:
     estimated_wait = wait.estimated_wait_minutes if wait else 60
     wait_level = wait.wait_level if wait else "moderate"
+    travel_minutes = estimate_travel_minutes(distance_km)
     return NearbyHospitalDetail(
         hospital_id=hospital.hospital_id,
         hpid=hospital.hpid,
@@ -145,6 +146,8 @@ def _to_detail(
         latitude=float(hospital.latitude),
         longitude=float(hospital.longitude),
         distance_km=round(distance_km, 2),
+        estimated_travel_minutes=travel_minutes,
+        total_eta_minutes=travel_minutes + estimated_wait,
         total_er_beds=hospital.total_er_beds,
         er_beds_available=hospital.total_er_beds > 0,
         estimated_wait_minutes=estimated_wait,

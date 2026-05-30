@@ -13,11 +13,9 @@ from app.schemas.assignment import (
     VoiceAssignmentResponse,
 )
 from app.schemas.hospital import EmergencyCaseResponse, HospitalResponse, WaitTimeBreakdown
-from app.services.assignment_message import (
-    build_assignment_guidance_message,
-    estimate_travel_minutes,
-)
+from app.services.assignment_message import build_assignment_guidance_message
 from app.services.hospital_recommendation import (
+    estimate_travel_minutes,
     haversine_km,
     infer_capability_needs,
     infer_ktas_level,
