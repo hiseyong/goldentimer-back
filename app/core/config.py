@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     app_name: str = "GoldenTimer API"
     api_v1_prefix: str = "/api/v1"
 
+    ermct_service_key: str = ""
+    hospital_sync_enabled: bool = True
+    hospital_sync_cycle_minutes: int = 5
+    hospital_sync_full_hour: int = 3
+    hospital_sync_request_delay_sec: float = 0.05
+
     @property
     def database_url(self) -> str:
         return (
